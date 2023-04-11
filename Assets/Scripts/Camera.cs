@@ -6,7 +6,7 @@ public class Camera : MonoBehaviour
 {
     [SerializeField] Transform cameraLookAtPoint;
     float angle;
-    const float cameraDistance = 20;
+    const float cameraDistance = 60;
 
     // Start is called before the first frame update
     void Start()
@@ -18,6 +18,6 @@ public class Camera : MonoBehaviour
     void Update()
     {
         angle += 0.3f * Time.deltaTime;
-        transform.position = new Vector3(cameraLookAtPoint.position.x + Mathf.Cos(angle) * cameraDistance, cameraLookAtPoint.position.y + 16f, cameraLookAtPoint.position.z + Mathf.Sin(angle) * cameraDistance);
+        transform.position = new Vector3(cameraLookAtPoint.position.x + Mathf.Cos(angle) * cameraDistance, cameraLookAtPoint.position.y + 20f, cameraLookAtPoint.position.z + Mathf.Sin(angle) * cameraDistance);
     }
 }
