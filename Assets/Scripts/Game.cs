@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
@@ -7,81 +8,106 @@ public enum BlockType
     BLOKTYPE_L,
     BLOKTYPE_O,
     BLOKTYPE_Z,
-    BLOKTYPE_T
+    BLOKTYPE_T,
+    BLOKTYPE_I
+}
+
+public enum RotationType
+{
+    XAxisCW,
+    XAxisCCW,
+    YAxisCW,
+    YAxisCCW
 }
 
 public class Game : MonoBehaviour
 {
-    public const float GRID_OFFSET_X = 0f;
-    public const float GRID_OFFSET_Y = -0.5f;
-    public const float GRID_OFFSET_Z = 0f;
-    const int PLAYFIELD_WIDTH = 14;
-    const int PLAYFIELD_DEPTH = 14;
-    const int PLAYFIELD_HEIGHT = 30;
-    float timeSinceBlockSpawn = 4;
+    const int BLOCK_SIZE = 4;
+    const int PLAYFIELD_SIZE_X = 12;
+    const int PLAYFIELD_SIZE_Y = 26;
+    const int PLAYFIELD_SIZE_Z = 12;
+    const int PLAYFIELD_HEIGHT_BLOCKS_ALLOWED = 15;
     float timeSinceBlockDrop;
-    List<Block> blocks = new List<Block>();
-    [SerializeField] List<Material> cellMaterials = new List<Material>();
-    [SerializeField] TextMeshProUGUI[] LevelTexts;
+    [SerializeField] List<Material> cellMaterials = new();
+    [SerializeField] TextMeshProUGUI[] levelTexts;
     [SerializeField] TextMeshProUGUI[] scoreTexts;
     [SerializeField] GameObject panelGameOver;
     Block currentBlock;
-    float rotateLeftRight;
-    float rotateForwardBack;
-    private int score, level;
-    bool[,,] playField = new bool[PLAYFIELD_WIDTH, PLAYFIELD_HEIGHT, PLAYFIELD_DEPTH];
+    private int score, rowsCompleted, level;
+    readonly GameObject[,,] playField = new GameObject[PLAYFIELD_SIZE_X, PLAYFIELD_SIZE_Y, PLAYFIELD_SIZE_Z];
     bool playingGame;
 
-    // Start is called before the first frame update
     void Start()
     {
-        //        DisplayPlayfield();
         ResetGame();
+        CreateLayerWithHole(0, new Vector2Int(3,3));
+        CreateLayerWithHole(1, new Vector2Int(5,6));
+        CreateLayerWithHole(2, new Vector2Int(7,8));
+    }
+
+    void CreateLayerWithHole(int y, Vector2Int holePosition)
+    {
+        for (int x = 0; x < PLAYFIELD_SIZE_X; x++)
+        {
+            for (int z = 0; z < PLAYFIELD_SIZE_Z; z++)
+            {
+                if (x!=holePosition.x || z != holePosition.y)
+                {
+                    GameObject gameObject = Instantiate(Resources.Load("pfCell", typeof(GameObject))) as GameObject;
+                    gameObject.transform.position = new Vector3(x, y, z);
+                    playField[x, y, z] = gameObject;
+                }
+            }
+        }
     }
 
     public void OnContinue()
     {
-        ResetGame();
+        if (!playingGame)
+        {
+            ResetGame();
+        }
     }
-
     private void ResetGame()
     {
-        playingGame = true;
-        panelGameOver.SetActive(false);
-        SetSore(0);
         SetLevel(1);
+        SetSore(0);
+        ResetLevel();
+        NewRandomBlock();
+        playingGame = true;
+    }
+
+    private void NewRandomBlock()
+    {
+        int materialIndex = UnityEngine.Random.Range(0, cellMaterials.Count);
+        Array values = Enum.GetValues(typeof(BlockType));
+        BlockType blockType = (BlockType)values.GetValue(new System.Random().Next(values.Length));
+        currentBlock = new Block(blockType, new Vector3Int(PLAYFIELD_SIZE_X / 2, PLAYFIELD_SIZE_Y - BLOCK_SIZE, PLAYFIELD_SIZE_Z / 2), cellMaterials[materialIndex]);
+    }
+
+    private void ResetLevel()
+    {
+        rowsCompleted = 0;
+        panelGameOver.SetActive(false);
+        GameObject[] cells = GameObject.FindGameObjectsWithTag("Cell");
+        foreach (GameObject cell in cells)
+        {
+            Destroy(cell);
+        }
 
         // clear playfield
-        for (int y = 0; y < PLAYFIELD_HEIGHT; y++)
+        for (int y = 0; y < PLAYFIELD_SIZE_Y; y++)
         {
-            for (int x = 0; x < PLAYFIELD_WIDTH; x++)
+            for (int x = 0; x < PLAYFIELD_SIZE_X; x++)
             {
-                for (int z = 0; z < PLAYFIELD_DEPTH; z++)
+                for (int z = 0; z < PLAYFIELD_SIZE_Z; z++)
                 {
-                    playField[x, 0, z] = false;
+                    if(playField[x, y, z] != null)
+                    {
+                        Destroy(playField[x, y, z]);
+                        playField[x, y, z] = null;
+                    }
                 }
-            }
-        }
-
-        // mark boundaries of playfield
-        for (int y = 0; y < PLAYFIELD_HEIGHT; y++)
-        {
-            for (int x = 0; x < PLAYFIELD_WIDTH; x++)
-            {
-                playField[x, y, 0] = true;
-                playField[x, y, PLAYFIELD_DEPTH - 1] = true;
-            }
-            for (int z = 0; z < PLAYFIELD_DEPTH; z++)
-            {
-                playField[0, y, z] = true;
-                playField[PLAYFIELD_WIDTH - 1, y, z] = true;
-            }
-        }
-        for (int x = 0; x < PLAYFIELD_WIDTH; x++)
-        {
-            for (int z = 0; z < PLAYFIELD_DEPTH; z++)
-            {
-                playField[x, 0, z] = true;
             }
         }
     }
@@ -98,13 +124,12 @@ public class Game : MonoBehaviour
     private void SetLevel(int value)
     {
         level = value;
-        foreach (TextMeshProUGUI levelText in LevelTexts)
+        foreach (TextMeshProUGUI levelText in levelTexts)
         {
             levelText.text = level.ToString();
         }
     }
 
-    // Update is called once per frame
     void Update()
     {
         if (!playingGame)
@@ -112,16 +137,8 @@ public class Game : MonoBehaviour
             return;
         }
 
-        timeSinceBlockSpawn += Time.deltaTime;
-        if (timeSinceBlockSpawn > 5)
-        {
-            timeSinceBlockSpawn = -10000;
-            int materialIndex = Random.Range(0, cellMaterials.Count);
-            currentBlock = new Block(BlockType.BLOKTYPE_L, new Vector3Int(PLAYFIELD_WIDTH / 2, 22, PLAYFIELD_DEPTH / 2), cellMaterials[materialIndex]);
-        }
-
         timeSinceBlockDrop += Time.deltaTime;
-        if (timeSinceBlockDrop > 1)
+        if (timeSinceBlockDrop > (1.1 - (level * 0.2)))
         {
             timeSinceBlockDrop = 0;
             LowerBlockByOne();
@@ -130,9 +147,9 @@ public class Game : MonoBehaviour
 
     private void GameOverCheck()
     {
-        foreach(Cell cell in currentBlock.Cells)
+        foreach (Cell cell in currentBlock.Cells)
         {
-            if (cell.AbsolutePosition.y >= 15)
+            if (cell.AbsolutePosition.y >= PLAYFIELD_HEIGHT_BLOCKS_ALLOWED)
             {
                 panelGameOver.SetActive(true);
                 playingGame = false;
@@ -141,56 +158,106 @@ public class Game : MonoBehaviour
         }
     }
 
-    private bool LowerBlockByOne()
+    private void RowCompletedCheck()
     {
-        SetSore(score + 1);
-        
-        Vector3Int newPosition = new Vector3Int(currentBlock.Position.x, currentBlock.Position.y - 1, currentBlock.Position.z);
-        if (!CollisionCheck(currentBlock, newPosition))
+        for (int y = 0; y < PLAYFIELD_HEIGHT_BLOCKS_ALLOWED; y++)
         {
-            currentBlock.Position = newPosition;
-            return true;
-        }
-        else
-        {
-            GameOverCheck();
-            AddCellPositionsToPlayfield();
-            int materialIndex = Random.Range(0, cellMaterials.Count);
-            currentBlock = new Block(BlockType.BLOKTYPE_L, new Vector3Int(PLAYFIELD_WIDTH / 2, 22, PLAYFIELD_DEPTH / 2), cellMaterials[materialIndex]);
-            return false;
-        }
-    }
-
-    private void AddCellPositionsToPlayfield()
-    {
-        foreach(Cell cell in currentBlock.Cells)
-        {
-            playField[cell.AbsolutePosition.x, cell.AbsolutePosition.y, cell.AbsolutePosition.z] = true;
-        }
-    }
-
-    private void DisplayPlayfield()
-    {
-        for (int x = 0; x < PLAYFIELD_WIDTH; x++)
-        {
-            for (int y = 0; y < PLAYFIELD_HEIGHT; y++)
+            bool layerContainsEmptyCells = false;
+            for (int x = 0; x < PLAYFIELD_SIZE_X; x++)
             {
-                for (int z = 0; z < PLAYFIELD_DEPTH; z++)
+                for (int z = 0; z < PLAYFIELD_SIZE_Z; z++)
                 {
-                    if (playField[x, y, z]==true)
+                    if (playField[x, y, z] == null)
                     {
-                        Instantiate(Resources.Load("pfCube"), new Vector3(x, y, z), Quaternion.identity);
+                        layerContainsEmptyCells = true;
+                        break;
+                    }
+                }
+                if (layerContainsEmptyCells)
+                {
+                    break;
+                }
+            }
+            if (!layerContainsEmptyCells)
+            {
+                RemoveLayer(y);
+            }
+        }
+    }
+
+    private void LowerAllLayersHigher(int yPosition)
+    {
+        for (int y = yPosition; y < PLAYFIELD_SIZE_Y - 2; y++)
+        {
+            for (int x = 0; x < PLAYFIELD_SIZE_X; x++)
+            {
+                for (int z = 0; z < PLAYFIELD_SIZE_Z; z++)
+                {
+                    playField[x, y, z] = playField[x, y + 1, z];
+                    if (playField[x, y, z] != null)
+                    {
+                        playField[x, y, z].transform.position += new Vector3(0, -1, 0);
                     }
                 }
             }
         }
     }
 
-    private bool CollisionCheck(Block block, Vector3Int position)
+    private void RemoveLayer(int yPosition)
     {
-        foreach (Cell cell in block.Cells)
+        for (int x = 0; x < PLAYFIELD_SIZE_X; x++)
         {
-            if (playField[position.x + cell.Position.x, position.y + cell.Position.y, position.z + cell.Position.z])
+            for (int z = 0; z < PLAYFIELD_SIZE_Z; z++)
+            {
+                Destroy(playField[x, yPosition, z]);
+            }
+        }
+        LowerAllLayersHigher(yPosition);
+        SetSore(score + level * (PLAYFIELD_SIZE_X - 2) * (PLAYFIELD_SIZE_Z - 2));
+        rowsCompleted++;
+        if (rowsCompleted > 10)
+        {
+            level++;
+            ResetLevel();
+        }
+    }
+
+    private bool LowerBlockByOne()
+    {
+        if (!CollisionCheck(CurrentBlockToPositionsList(new Vector3Int(0, -1, 0))))
+        {
+            currentBlock.Position += new Vector3Int(0, -1, 0);
+            return true;
+        }
+        else
+        {
+            GameOverCheck();
+            AddCellsToPlayfield();
+            RowCompletedCheck();
+            NewRandomBlock();
+            return false;
+        }
+    }
+
+    private void AddCellsToPlayfield()
+    {
+        foreach(Cell cell in currentBlock.Cells)
+        {
+            if(cell.AbsolutePosition.x >= 0 && cell.AbsolutePosition.x < PLAYFIELD_SIZE_X &&
+                cell.AbsolutePosition.y >= 0 && cell.AbsolutePosition.y < PLAYFIELD_SIZE_Y &&
+                cell.AbsolutePosition.z >= 0 && cell.AbsolutePosition.z < PLAYFIELD_SIZE_Z)
+            playField[cell.AbsolutePosition.x, cell.AbsolutePosition.y, cell.AbsolutePosition.z] = cell.GameObject;
+        }
+    }
+
+    private bool CollisionCheck(List<Vector3Int> cells)
+    {
+        foreach (Vector3Int cell in cells)
+        {
+            if (cell.x < 0 || cell.x >= PLAYFIELD_SIZE_X ||
+                cell.y < 0 || cell.y >= PLAYFIELD_SIZE_Y ||
+                cell.z < 0 || cell.z >= PLAYFIELD_SIZE_Z ||
+                playField[cell.x, cell.y, cell.z] != null)
             {
                 return true;
             }
@@ -199,44 +266,11 @@ public class Game : MonoBehaviour
         return false;
     }
 
-    private void RotateYAxisCW(Block block)
-    {
-        foreach (Cell cell in block.Cells)
-        {
-            cell.Position = new Vector3Int(cell.Position.z, cell.Position.y, 4 - cell.Position.x);
-        }
-    }
-
-    private void RotateYAxisCCW(Block block)
-    {
-        foreach (Cell cell in block.Cells)
-        {
-            cell.Position = new Vector3Int(4 - cell.Position.z, cell.Position.y, cell.Position.x);
-        }
-    }
-
-    private void RotateXAxisCW(Block block)
-    {
-        foreach (Cell cell in block.Cells)
-        {
-            cell.Position = new Vector3Int(cell.Position.x, cell.Position.z, 4 - cell.Position.y);
-        }
-    }
-
-    private void RotateXAxisCCW(Block block)
-    {
-        foreach (Cell cell in block.Cells)
-        {
-            cell.Position = new Vector3Int(cell.Position.x, 4 - cell.Position.z, cell.Position.y);
-        }
-    }
-
     public void OnLeft()
     {
         if (currentBlock != null)
         {
-            Vector3Int newPosition = new Vector3Int(currentBlock.Position.x + 1, currentBlock.Position.y, currentBlock.Position.z);
-            if (!CollisionCheck(currentBlock, newPosition))
+            if (!CollisionCheck(CurrentBlockToPositionsList(new Vector3Int(1, 0, 0))))
             {
                 currentBlock.Position += new Vector3Int(1, 0, 0);
             }
@@ -247,8 +281,7 @@ public class Game : MonoBehaviour
     {
         if (currentBlock != null)
         {
-            Vector3Int newPosition = new Vector3Int(currentBlock.Position.x - 1, currentBlock.Position.y, currentBlock.Position.z);
-            if (!CollisionCheck(currentBlock, newPosition))
+            if (!CollisionCheck(CurrentBlockToPositionsList(new Vector3Int(-1, 0, 0))))
             {
                 currentBlock.Position += new Vector3Int(-1, 0, 0);
             }
@@ -259,9 +292,8 @@ public class Game : MonoBehaviour
     {
         if (currentBlock != null)
         {
-            Vector3Int newPosition = new Vector3Int(currentBlock.Position.x, currentBlock.Position.y, currentBlock.Position.z + 1);
-            if (!CollisionCheck(currentBlock, newPosition))
-            {
+            if (!CollisionCheck(CurrentBlockToPositionsList(new Vector3Int(0, 0, 1))))
+            { 
                 currentBlock.Position += new Vector3Int(0, 0, 1);
             }
         }
@@ -271,8 +303,7 @@ public class Game : MonoBehaviour
     {
         if (currentBlock != null)
         {
-            Vector3Int newPosition = new Vector3Int(currentBlock.Position.x, currentBlock.Position.y, currentBlock.Position.z - 1);
-            if (!CollisionCheck(currentBlock, newPosition))
+            if (!CollisionCheck(CurrentBlockToPositionsList(new Vector3Int(0, 0, -1))))
             {
                 currentBlock.Position += new Vector3Int(0, 0, -1);
             }
@@ -281,38 +312,79 @@ public class Game : MonoBehaviour
 
     public void OnDrop()
     {
-        while (LowerBlockByOne()) ;
-    }
-
-    public void OnRotateYAxisCW()
-    {
-        if (currentBlock != null)
+        if (!playingGame)
         {
-            RotateYAxisCW(currentBlock);
+            ResetGame();
         }
+        while (LowerBlockByOne());
     }
 
-    public void OnRotateYAxisCCW()
+    private List<Vector3Int> CurrentBlockToPositionsList(Vector3Int offset)
+    {
+        List<Vector3Int> positionsList = new();
+        foreach (Cell cell in currentBlock.Cells)
+        {
+            positionsList.Add(cell.AbsolutePosition + offset);
+        }
+
+        return positionsList;
+    }
+
+    private List<Vector3Int> CurrentBlockToRotatedPositionsList(RotationType rotationType)
+    {
+        List<Vector3Int> positionsList = new();
+        foreach (Cell cell in currentBlock.Cells)
+        {
+            positionsList.Add(Rotate(cell.Position, rotationType) + currentBlock.Position);
+        }
+
+        return positionsList;
+    }
+
+    private Vector3Int Rotate(Vector3Int rotationObject, RotationType rotationType)
+    {
+        return rotationType switch
+        {
+            RotationType.XAxisCW => new Vector3Int(rotationObject.z, rotationObject.y, BLOCK_SIZE - rotationObject.x),
+            RotationType.XAxisCCW => new Vector3Int(rotationObject.x, BLOCK_SIZE - rotationObject.z, rotationObject.y),
+            RotationType.YAxisCW => new Vector3Int(rotationObject.z, rotationObject.y, BLOCK_SIZE - rotationObject.x),
+            RotationType.YAxisCCW => new Vector3Int(BLOCK_SIZE - rotationObject.z, rotationObject.y, rotationObject.x),
+            _ => throw new NotImplementedException()
+        };
+    }
+
+    private void RotateIfPossible(RotationType rotationType)
     {
         if (currentBlock != null)
         {
-            RotateYAxisCCW(currentBlock);
+            if (!CollisionCheck(CurrentBlockToRotatedPositionsList(rotationType)))
+            {
+                foreach (Cell cell in currentBlock.Cells)
+                {
+                    cell.Position = Rotate(cell.Position, rotationType);
+                }
+            }
         }
     }
 
     public void OnRotateXAxisCW()
     {
-        if (currentBlock != null)
-        {
-            RotateXAxisCW(currentBlock);
-        }
+        RotateIfPossible(RotationType.XAxisCW);
     }
 
     public void OnRotateXAxisCCW()
     {
-        if (currentBlock != null)
-        {
-            RotateXAxisCCW(currentBlock);
-        }
+        RotateIfPossible(RotationType.XAxisCCW);
     }
+
+    public void OnRotateYAxisCW()
+    {
+        RotateIfPossible(RotationType.YAxisCW);
+    }
+
+    public void OnRotateYAxisCCW()
+    {
+        RotateIfPossible(RotationType.YAxisCCW);
+    }
+
 }

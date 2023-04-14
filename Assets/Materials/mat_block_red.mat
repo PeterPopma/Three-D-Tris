@@ -25,7 +25,6 @@ Material:
   m_Parent: {fileID: 2100000, guid: ad534fea00504034b9f9570187f2edce, type: 2}
   m_ModifiedSerializedProperties: 0
   m_ValidKeywords:
-  - _ALPHAPREMULTIPLY_ON
   - _SURFACE_TYPE_TRANSPARENT
   m_InvalidKeywords: []
   m_LightmapFlags: 4
@@ -45,6 +44,7 @@ Material:
     m_Floats:
     - _Metallic: 0.668
     - _Smoothness: 1
+    - _WorkflowMode: 1
     m_Colors:
     - _BaseColor: {r: 1, g: 0.00000025431316, b: 0, a: 1}
     - _Color: {r: 1, g: 0.00000025431316, b: 0, a: 1}

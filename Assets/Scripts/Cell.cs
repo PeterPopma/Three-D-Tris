@@ -4,7 +4,7 @@ using UnityEngine;
 
 public class Cell
 {
-    Block parentBlock;
+    readonly Block parentBlock;
     Vector3Int position;
     GameObject gameObject;
 
@@ -15,9 +15,9 @@ public class Cell
     public void SetGameObjectPosition()
     {
         gameObject.transform.position = new Vector3(
-            parentBlock.Position.x + position.x + Game.GRID_OFFSET_X,
-            parentBlock.Position.y + position.y + Game.GRID_OFFSET_Y,
-            parentBlock.Position.z + position.z + Game.GRID_OFFSET_Z);
+            parentBlock.Position.x + position.x,
+            parentBlock.Position.y + position.y,
+            parentBlock.Position.z + position.z);
     }
 
     public Cell(Block parentBlock, Vector3Int position, Material materialCell)
